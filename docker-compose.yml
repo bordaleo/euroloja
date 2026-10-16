@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: syscol-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: syscol
+      POSTGRES_PASSWORD: syscol
+      POSTGRES_DB: syscol
+    ports:
+      - "5433:5432"
+    volumes:
+      - syscol_pg:/var/lib/postgresql/data
+
+volumes:
+  syscol_pg:

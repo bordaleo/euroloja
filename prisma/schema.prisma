@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  VENDEDOR
+}
+
+enum SaleStatus {
+  FATURADA
+  ENTREGUE
+  CANCELADA
+}
+
+enum PayStatus {
+  ABERTA
+  PAGA
+  CANCELADA
+}
+
+enum CashDirection {
+  ENTRADA
+  SAIDA
+}
+
+enum StockType {
+  ENTRADA
+  SAIDA
+  AJUSTE
+  RESERVA
+  LIBERACAO
+}
+
+model User {
+  id            String       @id @default(cuid())
+  name          String
+  email         String       @unique
+  passwordHash  String
+  role          Role         @default(VENDEDOR)
+  commissionBps Int          @default(0)
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  sales         Sale[]
+  commissions   Commission[]
+
+  @@map("users")
+}
+
+model Customer {
+  id           String    @id @default(cuid())
+  name         String
+  cpf          String?   @unique
+  birthDate    DateTime? @db.Date
+  phone        String?
+  cep          String?
+  street       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  createdAt    DateTime  @default(now())
+  sales        Sale[]
+
+  @@map("customers")
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String
+  category    String          @default("Colchão")
+  size        String?
+  density     String?
+  unitPrice   Int
+  costPrice   Int             @default(0)
+  stockQty    Int             @default(0)
+  reservedQty Int             @default(0)
+  minStock    Int             @default(0)
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  items       SaleItem[]
+  movements   StockMovement[]
+
+  @@index([name])
+  @@map("products")
+}
+
+model Sequence {
+  id    String @id
+  value Int    @default(0)
+
+  @@map("sequences")
+}
+
+model Sale {
+  id               String          @id @default(cuid())
+  number           Int             @unique
+  sellerId         String
+  seller           User            @relation(fields: [sellerId], references: [id])
+  customerId       String
+  customer         Customer        @relation(fields: [customerId], references: [id])
+  itemsTotal       Int
+  freight          Int             @default(0)
+  closedAmount     Int
+  installmentCount Int
+  firstDueDate     DateTime        @db.Date
+  deliveryDate     DateTime?       @db.Date
+  notes            String?
+  status           SaleStatus      @default(FATURADA)
+  issuedAt         DateTime        @default(now())
+  deliveredAt      DateTime?
+  cancelledAt      DateTime?
+  items            SaleItem[]
+  receivables      Receivable[]
+  commission       Commission?
+  movements        StockMovement[]
+
+  @@index([issuedAt])
+  @@index([status])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String  @id @default(cuid())
+  saleId      String
+  sale        Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  code        String
+  description String
+  quantity    Int
+  unitPrice   Int
+  unitCost    Int
+  total       Int
+
+  @@map("sale_items")
+}
+
+model Receivable {
+  id          String      @id @default(cuid())
+  saleId      String
+  sale        Sale        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  number      Int
+  dueDate     DateTime    @db.Date
+  amount      Int
+  paidAmount  Int         @default(0)
+  status      PayStatus   @default(ABERTA)
+  paidAt      DateTime?
+  cashEntries CashEntry[]
+
+  @@index([dueDate, status])
+  @@map("receivables")
+}
+
+model Payable {
+  id          String      @id @default(cuid())
+  description String
+  category    String
+  dueDate     DateTime    @db.Date
+  amount      Int
+  status      PayStatus   @default(ABERTA)
+  paidAt      DateTime?
+  createdAt   DateTime    @default(now())
+  cashEntries CashEntry[]
+
+  @@index([dueDate, status])
+  @@map("payables")
+}
+
+model CashEntry {
+  id           String        @id @default(cuid())
+  date         DateTime      @default(now())
+  direction    CashDirection
+  amount       Int
+  description  String
+  receivableId String?
+  receivable   Receivable?   @relation(fields: [receivableId], references: [id], onDelete: SetNull)
+  payableId    String?
+  payable      Payable?      @relation(fields: [payableId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@map("cash_entries")
+}
+
+model Commission {
+  id         String    @id @default(cuid())
+  saleId     String    @unique
+  sale       Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sellerId   String
+  seller     User      @relation(fields: [sellerId], references: [id])
+  bps        Int
+  baseAmount Int
+  amount     Int
+  status     PayStatus @default(ABERTA)
+
+  @@map("commissions")
+}
+
+model StockMovement {
+  id        String    @id @default(cuid())
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  type      StockType
+  quantity  Int
+  note      String?
+  saleId    String?
+  sale      Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+model StoreSettings {
+  id        String @id @default("default")
+  legalName String
+  cnpj      String
+  street    String
+  cep       String
+  district  String
+  city      String
+  state     String
+
+  @@map("store_settings")
+}
